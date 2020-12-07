@@ -51,4 +51,33 @@ nyc_airbnb %>%
   ggplot(aes(x = stars, y = price, color = borough)) +
   geom_point()
 ```
+Let's fit the model we care about
+```{r}
+fit = lm(price ~ stars + borough, data = nyc_airbnb)
+```
+
+Let's look at the result...
+
+```{r, include = FALSE}
+fit
+
+summary(fit)
+summary(fit)$coef
+coef(fit)
+residuals(fit)
+
+```
+
+Let's look at our results better....
+
+```{r}
+broom::glance(fit)
+
+broom::tidy(fit) %>% 
+  select(-std.error, -statistic) %>% 
+  mutate(
+    term = str_replace(term, "borough", "Borough: ")
+  ) %>% 
+  knitr::kable(digits = 3)
+```
 
