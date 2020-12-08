@@ -57,19 +57,19 @@ Look at prediction accuracy
 rmse(linear_mod, test_df)
 ```
 
-    ## [1] 0.8381133
+    ## [1] 0.8641585
 
 ``` r
 rmse(wiggly_mod, test_df)
 ```
 
-    ## [1] 0.3385399
+    ## [1] 0.3371298
 
 ``` r
 rmse(smooth_mod, test_df)
 ```
 
-    ## [1] 0.3385399
+    ## [1] 0.3371298
 
 ## Cross validation using `modelr`
 
@@ -85,18 +85,18 @@ cv_df %>% pull(train) %>% .[[1]] %>% as_tibble()
 ```
 
     ## # A tibble: 79 x 3
-    ##       id      x      y
-    ##    <int>  <dbl>  <dbl>
-    ##  1     2 0.846  -2.05 
-    ##  2     4 0.474   0.868
-    ##  3     6 0.643  -0.627
-    ##  4     7 0.0500  0.362
-    ##  5     8 0.201   1.11 
-    ##  6     9 0.500   0.392
-    ##  7    10 0.106   0.844
-    ##  8    11 0.229   1.05 
-    ##  9    12 0.471   0.636
-    ## 10    13 0.118   0.365
+    ##       id     x      y
+    ##    <int> <dbl>  <dbl>
+    ##  1     1 0.619 -0.263
+    ##  2     2 0.316  0.357
+    ##  3     3 0.763 -0.924
+    ##  4     4 0.918 -2.63 
+    ##  5     5 0.554  0.666
+    ##  6     7 0.631 -0.360
+    ##  7     8 0.606 -0.122
+    ##  8     9 0.417  0.659
+    ##  9    10 0.802 -1.36 
+    ## 10    12 0.282  1.19 
     ## # … with 69 more rows
 
 ``` r
@@ -104,18 +104,18 @@ cv_df %>% pull(test) %>% .[[1]] %>% as_tibble()
 ```
 
     ## # A tibble: 21 x 3
-    ##       id      x      y
-    ##    <int>  <dbl>  <dbl>
-    ##  1     1 0.898  -2.78 
-    ##  2     3 0.941  -3.11 
-    ##  3     5 0.568   0.194
-    ##  4    23 0.718  -0.303
-    ##  5    27 0.319   1.28 
-    ##  6    30 0.197   1.41 
-    ##  7    32 0.189   0.531
-    ##  8    33 0.602   0.411
-    ##  9    35 0.0377  0.264
-    ## 10    37 0.629  -0.250
+    ##       id      x       y
+    ##    <int>  <dbl>   <dbl>
+    ##  1     6 0.0805  0.424 
+    ##  2    11 0.485   0.373 
+    ##  3    17 0.162   0.762 
+    ##  4    28 0.105   0.917 
+    ##  5    30 0.751  -1.05  
+    ##  6    32 0.396   0.710 
+    ##  7    37 0.190   0.404 
+    ##  8    39 0.614  -0.0420
+    ##  9    59 0.364   0.971 
+    ## 10    61 0.142   0.785 
     ## # … with 11 more rows
 
 ``` r
@@ -205,6 +205,87 @@ cv_df_new %>%
     ## # A tibble: 3 x 2
     ##   model  avg_rmse
     ##   <chr>     <dbl>
-    ## 1 linear    0.816
-    ## 2 smooth    0.816
-    ## 3 wiggly    0.816
+    ## 1 linear    0.710
+    ## 2 smooth    0.710
+    ## 3 wiggly    0.710
+
+## Try on a real dataset.
+
+import my data
+
+``` r
+child_growth = 
+  read_csv("./nepalese_children.csv") %>% view()
+```
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   age = col_double(),
+    ##   sex = col_double(),
+    ##   weight = col_double(),
+    ##   height = col_double(),
+    ##   armc = col_double()
+    ## )
+
+``` r
+child_growth %>% 
+  ggplot(aes(x = weight, y = armc)) + 
+  geom_point(alpha = .5)
+```
+
+<img src="Cross_validation_files/figure-gfm/unnamed-chunk-15-1.png" width="90%" />
+
+Try some models
+
+``` r
+child_growth =
+  child_growth %>% 
+  mutate(weight_cp = (weight > 7) * (weight - 7))
+```
+
+Fit the models I care about
+
+``` r
+linear_mod = lm(armc ~ weight, data = child_growth)
+pwlin_mod = lm(armc ~ weight + weight_cp, data = child_growth)
+smooth_mod = gam(armc ~ s(weight), data = child_growth)
+```
+
+``` r
+child_growth %>% 
+  gather_predictions(linear_mod, pwlin_mod, smooth_mod) %>% 
+  ggplot(aes(x = weight, y = armc)) +
+  geom_point(alpha = .3) +
+  geom_line(aes(y = pred), color = "red") +
+  facet_grid(. ~model)
+```
+
+<img src="Cross_validation_files/figure-gfm/unnamed-chunk-18-1.png" width="90%" />
+
+Let’s try to understand model fit using cross-validation.
+
+``` r
+cv_df = 
+  crossv_mc(child_growth, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  ) %>% view()
+```
+
+See if I can fit the models to the splits…
+
+``` r
+#cv_df = 
+#  child_growth %>% 
+#  mutate(
+#    linear_mod = map(.x = train, ~lm(armc ~ weight, data = .x)),
+#    pwlin_mod = map(.x = train, ~lm(armc ~ weight + weight_cp, data = .x)),
+#    smooth_mod = map(.x = train, ~gam(armc ~ s(weight), data = .x))
+#  ) %>% 
+#  mutate(
+#    rmse_linear = map2_dbl(.x = linear_mod, .y = test, ~rmse(model = .x, data = .y)),
+#    rmse_pwlin = map2_dbl(.x = pwlin_mod, .y = test, ~rmse(model = .x, data = .y)),
+#    rmse_smooth = map2_dbl(.x = smooth_mod, .y = test, ~rmse(model = .x, data = .y))
+#  )
+```
