@@ -230,3 +230,5 @@ airbnb_boot_results %>%
   geom_density()
 ```
 
+
+
